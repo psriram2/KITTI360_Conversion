@@ -6,18 +6,19 @@ from skimage import io
 # local imports
 from label_helpers import Annotation3D
 from labels import id2label
+from config import config
 
 
-ROOT_DIR = "./"
-RAW_IMAGE_DATA = "./data_2d_raw"
-INSTANCE_SEG_DATA = "./data_2d_semantics/train"
-POSES_DATA = "./data_poses"
+ROOT_DIR = config["ROOT_DIR"]
+RAW_IMAGE_DATA = config["RAW_IMAGE_DATA"]
+INSTANCE_SEG_DATA =  config["INSTANCE_SEG_DATA"]
+POSES_DATA = config["POSES_DATA"]
 
-KITTI_LABEL_FOLDER = "./label_2"
+KITTI_LABEL_FOLDER = config["KITTI_LABEL_FOLDER"]
 
-CAM_ID = 1
+CAM_ID = config["CAM_ID"]
 KITTI_CATEGORIES = {"car": "Car", "person": "Pedestrian", "bicycle": "Cyclist"}
-MAX_N = 1000
+MAX_N = config["MAX_N"]
 
 
 def get_instance_map_path(sequence, frame):
@@ -66,10 +67,6 @@ def remove_pitch(points_local):
     unit_h_dir = np.array([0, 1, 0])
     unit_w_dir = np.cross(unit_l_dir, unit_h_dir)
 
-    # print("unit_l_dir: ", unit_l_dir)
-    # print("unit_h_dir: ", unit_h_dir)
-    # print("unit_w_dir: ", unit_w_dir)
-
     proj_points = np.array([high_xz[0], low_xz[0], high_xz[1], low_xz[1], low_xz[2], high_xz[2], low_xz[3], high_xz[3]])
 
     # project all 8 points along length
@@ -92,8 +89,6 @@ def remove_pitch(points_local):
     w_points = np.array([np.dot(a, unit_w_dir) for a in proj_points])
     w_min = np.argmin(w_points)
     w_max = np.argmax(w_points)
-    # w_min_dist = np.min(w_points)*unit_w_dir
-    # w_max_dist = np.max(w_points)*unit_w_dir
     
     proj_points[2] = proj_points[2] + (w_points[w_min]*unit_w_dir - w_points[2]*unit_w_dir)
     proj_points[3] = proj_points[3] + (w_points[w_min]*unit_w_dir - w_points[3]*unit_w_dir)
@@ -109,11 +104,8 @@ def remove_pitch(points_local):
 
 
 
-
 def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
     """Converts the 3D bounding boxes to KITTI format given the annotation object"""
-
-    kitti_annotation = {}
 
     vertices = anno3d.vertices
     
@@ -165,26 +157,16 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
     bbox_2d = [u_min, v_min, u_max, v_max]
     globalId_cnt = np.sum(instance_seg == global_id)
 
-    # io.imsave("./example_instance_pran_obj.png", instance_seg == global_id)
 
     # truncated
 
     # ==============================================================================
     # Truncation
     # ============================================================================== 
-    # first project vertices in pixel space
-    # u, v, depth = camera.cam2image(points_local)
-    # uv_vertices, depth = u, v, depth
     
-    # uv_vertices = project_3d_points(camera_calib, points_4d= vertices.transpose()).transpose() # 8 x 4
-    # u_min_temp, v_min_temp, _, _ = np.min(uv_vertices, axis= 0)
-    # u_max_temp, v_max_temp, _, _ = np.max(uv_vertices, axis= 0)
-
     points_local = np.transpose(points_local)
     u, v, depth = camera.cam2image(points_local)
     uv_vertices, depth = (u, v) , depth
-
-    # print("uv _vertices: ", uv_vertices)
 
     u_min_temp = np.min(uv_vertices[0], axis= 0)
     v_min_temp = np.min(uv_vertices[1], axis= 0)
@@ -231,9 +213,7 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
     # s = ' {:.4f}'.format(box.score)  # Classification score.
 
     output = name + trunc + occ + a + bb + hwl + xyz + y
-    # if ~np.isnan(box.score):
-    #     output += s
-
+    
     return output
 
 

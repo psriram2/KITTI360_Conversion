@@ -10,21 +10,22 @@ from labels import id2label
 from kitti_helper import get_kitti_annotations
 from project import CameraPerspective
 from calib_helpers import loadPerspectiveIntrinsic, loadCalibrationRigid
+from config import config
 
 
-ROOT_DIR = "./"
-RAW_IMAGE_DATA = "./data_2d_raw"
-INSTANCE_SEG_DATA = "./data_2d_semantics/train"
-POSES_DATA = "./data_poses"
-GT_CALIB_DATA = "./calibration"
+ROOT_DIR = config["ROOT_DIR"]
+RAW_IMAGE_DATA = config["RAW_IMAGE_DATA"]
+INSTANCE_SEG_DATA = config["INSTANCE_SEG_DATA"]
+POSES_DATA = config["POSES_DATA"]
+GT_CALIB_DATA = config["GT_CALIB_DATA"]
 
-KITTI_IMAGE_FOLDER = "./image_2"
-KITTI_LABEL_FOLDER = "./label_2"
-KITTI_CALIB_FOLDER = "./calib_2"
+KITTI_IMAGE_FOLDER = config["KITTI_IMAGE_FOLDER"]
+KITTI_LABEL_FOLDER = config["KITTI_LABEL_FOLDER"]
+KITTI_CALIB_FOLDER = config["KITTI_CALIB_FOLDER"]
 
-CAM_ID = 1
-CATEGORIES = ['car', 'person', 'bicycle']
-MAX_N = 1000
+CAM_ID = config["CAM_ID"]
+CATEGORIES = config["CATEGORIES"]
+MAX_N = config["MAX_N"]
 
 
 def get_instance_map_path(sequence, frame):
@@ -75,17 +76,6 @@ def create_instance_3d_dict(annotation3D):
 
             if global_id not in instance_3d_dict:
                 instance_3d_dict[global_id] = obj3d
-            
-            # camera(obj3d, frame)
-            # vertices = np.asarray(obj3d.vertices_proj).T
-            # points.append(np.asarray(obj3d.vertices_proj).T)
-            # depths.append(np.asarray(obj3d.vertices_depth))
-            # for line in obj3d.lines:
-            #     v = [obj3d.vertices[line[0]]*x + obj3d.vertices[line[1]]*(1-x) for x in np.arange(0,1,0.01)]
-            #     uv, d = camera.project_vertices(np.asarray(v), frame)
-            #     mask = np.logical_and(np.logical_and(d>0, uv[0]>0), uv[1]>0)
-            #     mask = np.logical_and(np.logical_and(mask, uv[0]<image.shape[1]), uv[1]<image.shape[0])
-            #     plt.plot(uv[0][mask], uv[1][mask], 'r.', linewidth=0.1, markersize=1)
 
     return instance_3d_dict
 
@@ -104,7 +94,6 @@ def get_annos_3d(instance_3d_dict, instance_ids):
 
 if __name__ == "__main__":
 
-    
     if not os.path.exists(KITTI_IMAGE_FOLDER):
         os.makedirs(KITTI_IMAGE_FOLDER)
 
@@ -119,9 +108,7 @@ if __name__ == "__main__":
     Tr = loadPerspectiveIntrinsic(filePersIntrinsic)
     print('Loaded %s' % filePersIntrinsic)
     proj_matrix = np.array(Tr[f'P_rect_0{CAM_ID}'][:3, :])
-    # print("proj_matrix: ", proj_matrix.shape)
     print("camera intrinsic: \n", proj_matrix)
-    # 1/0
 
     R0_rect = np.array(Tr[f'R_rect_0{CAM_ID}'])
     print("rectification rotation: \n", R0_rect)
@@ -138,13 +125,11 @@ if __name__ == "__main__":
         if seq == ".DS_Store": # check for garbage files
             continue
 
-
         camera = CameraPerspective(ROOT_DIR, seq, CAM_ID)
 
         label3DBboxPath = os.path.join(ROOT_DIR, 'data_3d_bboxes/train')
         annotation3D = Annotation3D(label3DBboxPath, seq, posesDir=POSES_DATA)
         instance_3d_dict = create_instance_3d_dict(annotation3D)
-
 
         cam = 'image_%02d' % CAM_ID + '/data_rect/'
 
@@ -164,8 +149,6 @@ if __name__ == "__main__":
             if len(annos_3d) == 0:  # make sure we have 3d annotations
                 continue
             
-            # print("processing image " + img_name + " / frame " + str(frame))
-
             label_path = os.path.join(KITTI_LABEL_FOLDER, seq + f"_CAM{CAM_ID}" + img_name + '.txt')
             if os.path.exists(label_path):
                 # 1/0 # should never happen
