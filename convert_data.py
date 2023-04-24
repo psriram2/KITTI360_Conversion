@@ -104,7 +104,7 @@ if __name__ == "__main__":
         os.makedirs(KITTI_CALIB_FOLDER)
 
         
-    filePersIntrinsic = os.path.join(GT_CALIB_DATA, 'perspective.txt')
+    filePersIntrinsic = os.path.join(ROOT_DIR, GT_CALIB_DATA, 'perspective.txt')
     Tr = loadPerspectiveIntrinsic(filePersIntrinsic)
     print('Loaded %s' % filePersIntrinsic)
     proj_matrix = np.array(Tr[f'P_rect_0{CAM_ID}'][:3, :])
@@ -113,13 +113,13 @@ if __name__ == "__main__":
     R0_rect = np.array(Tr[f'R_rect_0{CAM_ID}'])
     print("rectification rotation: \n", R0_rect)
 
-    fileCameraToVelo = os.path.join(GT_CALIB_DATA, 'calib_cam_to_velo.txt')
+    fileCameraToVelo = os.path.join(ROOT_DIR, GT_CALIB_DATA, 'calib_cam_to_velo.txt')
     Tr = loadCalibrationRigid(fileCameraToVelo)
     print('Loaded %s' % fileCameraToVelo)
     velo_to_cam = np.linalg.inv(np.array(Tr))
     print("velo_to_cam: \n", velo_to_cam)
 
-    all_seqs = os.listdir(RAW_IMAGE_DATA)
+    all_seqs = os.listdir(os.path.join(ROOT_DIR, RAW_IMAGE_DATA))
     for i in tqdm(range(len(all_seqs))):
         seq = all_seqs[i]
         if seq == ".DS_Store": # check for garbage files
@@ -128,12 +128,13 @@ if __name__ == "__main__":
         camera = CameraPerspective(ROOT_DIR, seq, CAM_ID)
 
         label3DBboxPath = os.path.join(ROOT_DIR, 'data_3d_bboxes/train')
-        annotation3D = Annotation3D(label3DBboxPath, seq, posesDir=POSES_DATA)
+        pose_dir = os.path.join(ROOT_DIR, POSES_DATA)
+        annotation3D = Annotation3D(label3DBboxPath, seq, posesDir=pose_dir)
         instance_3d_dict = create_instance_3d_dict(annotation3D)
 
         cam = 'image_%02d' % CAM_ID + '/data_rect/'
 
-        all_imgs = os.listdir(os.path.join(RAW_IMAGE_DATA, seq, cam))
+        all_imgs = os.listdir(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam))
 
         for j in tqdm(range(len(all_imgs))):
             img = all_imgs[j]
@@ -149,7 +150,7 @@ if __name__ == "__main__":
             if len(annos_3d) == 0:  # make sure we have 3d annotations
                 continue
             
-            label_path = os.path.join(KITTI_LABEL_FOLDER, seq + f"_CAM{CAM_ID}" + img_name + '.txt')
+            label_path = os.path.join(KITTI_LABEL_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.txt')
             if os.path.exists(label_path):
                 # 1/0 # should never happen
                 pass
@@ -168,7 +169,7 @@ if __name__ == "__main__":
             kitti_transforms['R0_rect'] = R0_rect  # Cameras are already rectified.
             kitti_transforms['Tr_velo_to_cam'] = velo_to_cam[:3, :] # should not be used for monocular 3d either.
             kitti_transforms['Tr_imu_to_velo'] = np.zeros((3, 4)) # Dummy values.
-            calib_path = os.path.join(KITTI_CALIB_FOLDER, seq + f"_CAM{CAM_ID}" + img_name + '.txt')
+            calib_path = os.path.join(KITTI_CALIB_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.txt')
             with open(calib_path, "w") as calib_file:
                 for (key, val) in kitti_transforms.items():
                     val = val.flatten()
@@ -178,8 +179,8 @@ if __name__ == "__main__":
                     calib_file.write('%s: %s\n' % (key, val_str))
 
 
-            image_path = os.path.join(KITTI_IMAGE_FOLDER, seq + f"_CAM{CAM_ID}" + img_name + '.png')
-            curr_img = io.imread(os.path.join(RAW_IMAGE_DATA, seq, cam, all_imgs[j]))
+            image_path = os.path.join(KITTI_IMAGE_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.png')
+            curr_img = io.imread(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam, all_imgs[j]))
             io.imsave(image_path, curr_img)
 
 

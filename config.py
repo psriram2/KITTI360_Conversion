@@ -1,6 +1,6 @@
 
 config = {
-    "ROOT_DIR": "./",
+    "ROOT_DIR": "/hdd/datasets/KITTI-360",
     "RAW_IMAGE_DATA": "./data_2d_raw",
     "INSTANCE_SEG_DATA": "./data_2d_semantics/train",
     "POSES_DATA": "./data_poses",
