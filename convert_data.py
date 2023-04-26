@@ -154,7 +154,8 @@ if __name__ == "__main__":
         with open(label_path, "w") as label_file:
             for anno in annos_3d:
                 output = get_kitti_annotations(anno, camera, seq, frame, ground_plane=ground_plane)
-                label_file.write(output + '\n')
+                if output != '':
+                    label_file.write(output + '\n')
                 
         if ground_plane is not None:
             proj_matrix[:3, :3] = np.matmul(proj_matrix[:3, :3], np.linalg.inv(ground_plane))

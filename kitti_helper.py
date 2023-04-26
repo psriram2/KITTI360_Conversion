@@ -180,7 +180,7 @@ def estimate_ground_plane(annos_3d, camera, frameId):
         points_local = camera.world2cam(vertices, R, T, inverse=True)
 
         assert points_local.shape[1] == 8
-        points_local = camera.world2cam(points_local, R, T, inverse=True)
+        # points_local = camera.world2cam(points_local, R, T, inverse=True)
         points_local = np.transpose(points_local)
 
         avg_dir_vector += np.absolute(points_local[3] - points_local[6])
@@ -220,7 +220,7 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, ground_plane=None, 
         points_local = remove_pitch(points_local)
     
     # dimensions 
-    points_local = np.transpose(points_local)
+    # points_local = np.transpose(points_local)
 
     # points_bbox = corrected_bbox(points_local)
     points_bbox = points_local
