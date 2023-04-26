@@ -343,6 +343,7 @@ def get_new_points_local2(points_local):
     pass
 
 def estimate_ground_plane(annotation3D):
+    print("ESTIMATE GROUND PLANE: ", frame, instanceIDs)
 
     avg_dir_vector = np.array([0.0, 0.0, 0.0])
 
@@ -368,7 +369,7 @@ def estimate_ground_plane(annotation3D):
             T = curr_pose[:3,  3]
             R = curr_pose[:3, :3]
 
-            print("world corodinates: ", points_local)
+            # print("world corodinates: ", points_local)
 
             # convert points from world coordinate to camera coordinate 
             points_local = camera.world2cam(points_local, R, T, inverse=True)
@@ -404,7 +405,7 @@ if __name__=="__main__":
     #     kitti360Path = os.path.join(os.path.dirname(
     #                             os.path.realpath(__file__)), '..', '..')
     
-    kitti360Path = "./"
+    kitti360Path = "../KITTI360_scripts/"
     poses_data = "./data_poses"
 
     seq = 0
@@ -432,6 +433,12 @@ if __name__=="__main__":
 
     # loop over frames
     for frame in camera.frames:
+
+        # # REMOVE !!
+        # if frame != 791:
+        #     print("Frame: ", frame)
+        #     continue
+
         # perspective
         if cam_id == 0 or cam_id == 1:
             image_file = os.path.join(kitti360Path, 'data_2d_raw', sequence, 'image_%02d' % cam_id, 'data_rect', '%010d.png'%frame)
@@ -468,7 +475,7 @@ if __name__=="__main__":
         gplane = estimate_ground_plane(annotation3D)
             
 
-        print(image_file)
+        # print(image_file)
         image = cv2.imread(image_file)
         plt.imshow(image[:,:,::-1])
 
@@ -496,14 +503,14 @@ if __name__=="__main__":
                 T = curr_pose[:3,  3]
                 R = curr_pose[:3, :3]
 
-                print("world corodinates: ", points_local)
+                # print("world corodinates: ", points_local)
 
                 # convert points from world coordinate to camera coordinate 
                 points_local = camera.world2cam(points_local, R, T, inverse=True)
                 points_local = np.transpose(points_local)
 
 
-                print("points local: ", points_local)
+                # print("points local: ", points_local)
 
 
                 # new_points_local = get_new_points_local(points_local)
@@ -511,11 +518,19 @@ if __name__=="__main__":
                 # points_local, inv_rot = get_new_points_local2(points_local)
 
                 points_local = np.transpose(gplane @ np.transpose(points_local))
+                
+                # if frame == 791:
+                #     print("points_local: ", points_local)
+                #     # 1/0
+                # else:
+                #     print(frame)
+
+
                 inv_rot = np.linalg.inv(gplane)
 
                 # print("points local shape: ", points_local.shape)
 
-                print("new points local: ", points_local)
+                # print("new points local: ", points_local)
                 # 1/0
 
 
@@ -524,7 +539,7 @@ if __name__=="__main__":
                 height = np.linalg.norm((points_local[2] - points_local[3]))
                 width = np.linalg.norm((points_local[1] - points_local[3]))
                 length = np.linalg.norm((points_local[3] - points_local[6]))
-                print("hwl : ", height, width ,length)
+                # print("hwl : ", height, width ,length)
 
                 # height = max(np.linalg.norm((points_local[2] - points_local[3])), np.linalg.norm((points_local[0] - points_local[1])), np.linalg.norm((points_local[7] - points_local[6])), np.linalg.norm((points_local[5] - points_local[4])))
                 # width = max(np.linalg.norm((points_local[1] - points_local[3])), np.linalg.norm((points_local[0] - points_local[2])), np.linalg.norm((points_local[5] - points_local[7])), np.linalg.norm((points_local[4] - points_local[6])))
@@ -546,7 +561,7 @@ if __name__=="__main__":
                 # width = np.sqrt((min_x - max_x)**2)
                 # length = np.sqrt((min_z - max_z)**2)
 
-                print("new hwl : ", height, width ,length)
+                # print("new hwl : ", height, width ,length)
 
                 # points_local = []
 
@@ -558,7 +573,7 @@ if __name__=="__main__":
                 
                 # center[1] = max(points_local[1, 1], points_local[3, 1], points_local[4, 1], points_local[6, 1])
                 # center = np.array([(min_x + max_x)/2, (min_y + max_y) / 2, (min_z + max_z)/ 2])
-                print("center: ", center)
+                # print("center: ", center)
 
                 # print(obj3d.bbox_center.shape)
                 # center_local = camera.world2cam(np.reshape(obj3d.bbox_center, (1, 3)), R, T, inverse=True)
@@ -566,20 +581,22 @@ if __name__=="__main__":
                 # 1/0
 
                 # rotation_y 
-                print("points local shape: ", points_local.shape)
+                # print("points local shape: ", points_local.shape)
                 vec = (points_local[3] - points_local[6])
                 # print("vec: ", vec_xz[0].shape)
                 # rotation_y = -1*np.arctan2(vec[2], vec[0])
                 rotation_y = -1*np.arctan2(vec[2], vec[0])
-                print("rotation_y: ", rotation_y*180 / np.pi)
+                # print("rotation_y: ", rotation_y*180 / np.pi)
 
                 # alpha 
                 alpha = rotation_y - np.arctan(vec[0] / vec[2])
-                print("alpha: ", alpha * 180 / np.pi)
+                # print("alpha: ", alpha * 180 / np.pi)
                 # 1/0
 
                 dims = [height, width, length]
                 rot_y = rotation_y
+
+                # print("everyting: ", rot_y, dims, center, alpha)
 
                 box_3d = []
                 for i in [1,-1]:
@@ -604,7 +621,7 @@ if __name__=="__main__":
 
                 new_vertices = np.array(reordered_box_3d)
 
-                print("new vertices (cam coordinates): ", new_vertices)
+                # print("new vertices (cam coordinates): ", new_vertices)
 
                 # new_vertices = np.transpose(inv_rot @ np.transpose(new_vertices))
                 camera.temp_K = np.zeros((3, 4))
@@ -612,7 +629,12 @@ if __name__=="__main__":
 
                 print("DIFFERENCE: ", new_vertices - points_local)
                 print("#"*100)
-
+                
+                # print("ground plane: ", gplane)
+                # print("orig K: ", camera.K)
+                # print("result: ",  np.matmul(camera.K[:3, :3], np.linalg.inv(gplane)))
+                # print("K: ", camera.temp_K)
+                # 1/0
 
 
 

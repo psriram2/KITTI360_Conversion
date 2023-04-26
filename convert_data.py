@@ -156,14 +156,15 @@ if __name__ == "__main__":
                 output = get_kitti_annotations(anno, camera, seq, frame, ground_plane=ground_plane)
                 if output != '':
                     label_file.write(output + '\n')
-                
+            
+        new_proj_matrix = np.zeros((3, 4))
         if ground_plane is not None:
-            proj_matrix[:3, :3] = np.matmul(proj_matrix[:3, :3], np.linalg.inv(ground_plane))
-    
+            new_proj_matrix[:3, :3] = np.matmul(proj_matrix[:3, :3], np.linalg.inv(ground_plane))
+
         kitti_transforms = dict()
         kitti_transforms['P0'] = np.zeros((3, 4))  # Dummy values.
         kitti_transforms['P1'] = np.zeros((3, 4))  # Dummy values.
-        kitti_transforms['P2'] = proj_matrix  # camera transform --> MAKE SURE THAT IMAGES ARE UNDER 'image_2'
+        kitti_transforms['P2'] = new_proj_matrix  # camera transform --> MAKE SURE THAT IMAGES ARE UNDER 'image_2'
         kitti_transforms['P3'] = np.zeros((3, 4))  # Dummy values.
         kitti_transforms['R0_rect'] = R0_rect  # Cameras are already rectified.
         kitti_transforms['Tr_velo_to_cam'] = velo_to_cam[:3, :] # should not be used for monocular 3d either.

@@ -68,7 +68,6 @@ def remove_pitch(points_local):
     x4 = low_xz[1] - low_xz[3]
 
     unit_l_dir = (x1 + x2 + x3 + x4) / np.linalg.norm(x1+x2+x3+x4)
-    print('unit_l_dir:', unit_l_dir)
     unit_h_dir = np.array([0, 1, 0])
     unit_w_dir = np.cross(unit_l_dir, unit_h_dir)
 
@@ -214,7 +213,7 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, ground_plane=None, 
     type = KITTI_CATEGORIES[id2label[anno3d.semanticId].name]
 
     if ground_plane is not None:
-        points_local = np.transpose(ground_plane @ points_local)
+        points_local = np.transpose(np.matmul(ground_plane, points_local))
     else:
         points_local = np.transpose(points_local)
         points_local = remove_pitch(points_local)
