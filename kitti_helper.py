@@ -103,8 +103,37 @@ def remove_pitch(points_local):
     return proj_points
 
 
+def estimate_ground_plane(annos_3d, camera, frameId):
+    avg_dir_vector = np.array([0.0, 0.0, 0.0])
 
-def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
+    for anno3d in annos_3d:
+        vertices = anno3d.vertices
+    
+        # curr_pose = camera.cam2world[frameId]
+        curr_pose = get_camera_pose(camera, frameId)
+        T = curr_pose[:3,  3]
+        R = curr_pose[:3, :3]
+
+        points_local = camera.world2cam(vertices, R, T, inverse=True)
+
+        assert points_local.shape[1] == 8
+        points_local = camera.world2cam(points_local, R, T, inverse=True)
+        points_local = np.transpose(points_local)
+
+        avg_dir_vector += np.absolute(points_local[3] - points_local[6])
+        avg_dir_vector += np.absolute(points_local[2] - points_local[7])
+        avg_dir_vector += np.absolute(points_local[0] - points_local[5])
+        avg_dir_vector += np.absolute(points_local[1] - points_local[4])
+        avg_dir_vector[0] = 0.0
+
+    avg_dir_vector = avg_dir_vector / np.linalg.norm(avg_dir_vector)
+    rotation_x = -1*np.arctan(avg_dir_vector[1] / avg_dir_vector[2])
+
+    rot_matrix = np.array([[1, 0, 0], [0, np.cos(rotation_x), -1*np.sin(rotation_x)], [0, np.sin(rotation_x), np.cos(rotation_x)]])
+    return rot_matrix
+
+
+def get_kitti_annotations(anno3d, camera, sequence, frameId, ground_plane=None, return_str=True):
     """Converts the 3D bounding boxes to KITTI format given the annotation object"""
 
     vertices = anno3d.vertices
@@ -120,12 +149,14 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
 
     # type
     type = KITTI_CATEGORIES[id2label[anno3d.semanticId].name]
-    # kitti_annotation["type"] = type
+
+    if ground_plane is not None:
+        points_local = np.transpose(ground_plane @ points_local)
+    else:
+        points_local = np.transpose(points_local)
+        points_local = remove_pitch(points_local)
     
     # dimensions 
-    points_local = np.transpose(points_local)
-    points_local = remove_pitch(points_local)
-
     height = np.linalg.norm((points_local[2] - points_local[3]))
     width = np.linalg.norm((points_local[1] - points_local[3]))
     length = np.linalg.norm((points_local[3] - points_local[6]))
