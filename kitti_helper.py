@@ -7,6 +7,7 @@ from skimage import io
 from label_helpers import Annotation3D
 from labels import id2label
 from config import config
+from matplotlib import pyplot as plt
 
 
 ROOT_DIR = config["ROOT_DIR"]
@@ -20,6 +21,9 @@ CAM_ID = config["CAM_ID"]
 KITTI_CATEGORIES = {"car": "Car", "person": "Pedestrian", "bicycle": "Cyclist"}
 MAX_N = config["MAX_N"]
 
+IMAGE_H = 376
+IMAGE_W = 1408
+MAX_BOX_DIST = 40
 
 def get_instance_map_path(sequence, frame):
     """creates the instance segmentation map path given the sequence and frame"""
@@ -64,6 +68,7 @@ def remove_pitch(points_local):
     x4 = low_xz[1] - low_xz[3]
 
     unit_l_dir = (x1 + x2 + x3 + x4) / np.linalg.norm(x1+x2+x3+x4)
+    print('unit_l_dir:', unit_l_dir)
     unit_h_dir = np.array([0, 1, 0])
     unit_w_dir = np.cross(unit_l_dir, unit_h_dir)
 
@@ -102,7 +107,62 @@ def remove_pitch(points_local):
 
     return proj_points
 
+def corrected_bbox(points_local):
+    """
+    Get new vertices of bbox (8, 3) in camera coordinate (OpenCV), 
+    which is axis-aligned
+            5 -------- 7
+           /|         /|
+          0 -------- 2 .
+          | |        | |
+          . 4 -------- 6
+          |/         |/
+          1 -------- 3
+    """
+    x = points_local[[0, 1, 2, 3]] - points_local[[5, 4, 7, 6]] #(4, 3)
+    v_x = np.mean(x, axis=0)
+    v_y = np.array([0, 1, 0])
+    v_z = np.cross(v_x, v_y)
+    v_z = v_z / np.linalg.norm(v_z)
+    v_x = np.cross(v_y, v_z)
+    v_x = v_x / np.linalg.norm(v_x)
+    rot = np.stack([v_x, v_y, v_z])
+    points_transformed = points_local @ rot.T
 
+    points_new = np.zeros_like(points_local)
+    points_new[[5, 4, 7, 6], 0] = np.min(points_transformed[:, 0])
+    points_new[[0, 1, 2, 3], 0] = np.max(points_transformed[:, 0])
+    points_new[[0, 2, 5, 7], 1] = np.min(points_transformed[:, 1])
+    points_new[[1, 3, 4, 6], 1] = np.max(points_transformed[:, 1])
+    points_new[[0, 1, 4, 5], 2] = np.min(points_transformed[:, 2])
+    points_new[[2, 3, 6, 7], 2] = np.max(points_transformed[:, 2])
+
+    points_new = points_new @ rot
+    return points_new
+
+def get_bbox_atttribute(points_bbox):
+    """Get (h, w, l, x, y, z, rot_y, alpha) from bbox vertices"""
+    h = np.linalg.norm(points_bbox[0] - points_bbox[1])
+    l = np.linalg.norm(points_bbox[0] - points_bbox[5])
+    w = np.linalg.norm(points_bbox[0] - points_bbox[2])
+    x, y, z = np.mean(points_bbox[[1, 3, 4, 6]], axis=0)
+    v_x = points_bbox[0] - points_bbox[5]
+    rot_y = -np.arctan(v_x[2]/v_x[0])
+    rot_view = np.arctan(x/z)
+    alpha = rot_y - rot_view
+    return (h, w, l, x, y, z, rot_y, alpha)
+
+def compute_3d_box_cam2(h, w, l, x, y, z, yaw):
+    """
+    Return : 3xn in cam2 coordinate
+    """
+    R = np.array([[np.cos(yaw), 0, np.sin(yaw)], [0, 1, 0], [-np.sin(yaw), 0, np.cos(yaw)]])
+    x_corners = [l/2,l/2,-l/2,-l/2,l/2,l/2,-l/2,-l/2]
+    y_corners = [0,0,0,0,-h,-h,-h,-h]
+    z_corners = [w/2,-w/2,-w/2,w/2,w/2,-w/2,-w/2,w/2]
+    corners_3d_cam2 = np.dot(R, np.vstack([x_corners,y_corners,z_corners]))
+    corners_3d_cam2 += np.vstack([x, y, z])
+    return corners_3d_cam2.T
 
 def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
     """Converts the 3D bounding boxes to KITTI format given the annotation object"""
@@ -124,24 +184,41 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
     
     # dimensions 
     points_local = np.transpose(points_local)
-    points_local = remove_pitch(points_local)
 
-    height = np.linalg.norm((points_local[2] - points_local[3]))
-    width = np.linalg.norm((points_local[1] - points_local[3]))
-    length = np.linalg.norm((points_local[3] - points_local[6]))
+    points_bbox = corrected_bbox(points_local)
+    h, w, l, x, y, z, rot_y, alpha = get_bbox_atttribute(points_bbox)
 
-    dims = [height, width, length]
+    # if the z is larger than threshold, then ignore
+    if z > MAX_BOX_DIST:
+        return ''
+    
+    ## Test
+    # import vedo
+    # points_proj = compute_3d_box_cam2(h, w, l, x, y, z, rot_y)
+    # pts_0 = vedo.Points(points_local, r=10, c='g')
+    # pts_1 = vedo.Points(points_bbox, r=10, c='r')
+    # pts_2 = vedo.Points(points_proj, r=10, c='b')
+    # vedo.show([pts_0, pts_1, pts_2], axes=1)
+    # quit()
 
-    # location 
-    center = (points_local[1] + points_local[3] + points_local[4] + points_local[6]) / 4
-    location = center
+    # points_local = remove_pitch(points_local)
 
-    # rotation_y 
-    vec = (points_local[3] - points_local[6])
-    rotation_y = -1*np.arctan2(vec[2], vec[0])
+    # height = np.linalg.norm((points_local[2] - points_local[3]))
+    # width = np.linalg.norm((points_local[1] - points_local[3]))
+    # length = np.linalg.norm((points_local[3] - points_local[6]))
 
-    # alpha 
-    alpha = rotation_y - np.arctan(vec[0] / vec[2])
+    # dims = [height, width, length]
+
+    # # location 
+    # center = (points_local[1] + points_local[3] + points_local[4] + points_local[6]) / 4
+    # location = center
+
+    # # rotation_y 
+    # vec = (points_local[3] - points_local[6])
+    # rotation_y = -1*np.arctan2(vec[2], vec[0])
+
+    # # alpha 
+    # alpha = rotation_y - np.arctan(vec[0] / vec[2])
 
     # bbox 
     instance_file = get_instance_map_path(sequence, frameId)
@@ -152,43 +229,33 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
     # print("instane seg shape: ", instance_seg.shape)
     rows, cols = np.where(instance_seg == global_id)
 
-    num_pixels = len(rows)
     u_min, v_min, u_max, v_max = np.min(rows), np.min(cols), np.max(rows), np.max(cols)
     bbox_2d = [u_min, v_min, u_max, v_max]
-    globalId_cnt = np.sum(instance_seg == global_id)
-
-
-    # truncated
 
     # ==============================================================================
     # Truncation
     # ============================================================================== 
     
-    points_local = np.transpose(points_local)
-    u, v, depth = camera.cam2image(points_local)
-    uv_vertices, depth = (u, v) , depth
+    points_bbox = np.transpose(points_bbox)
+    u, v, depth = camera.cam2image(points_bbox)
+    u_min, u_max = np.min(u), np.max(u)
+    v_min, v_max = np.min(v), np.max(v)
+    box3d_area = (u_max - u_min) * (v_max - v_min)
 
-    u_min_temp = np.min(uv_vertices[0], axis= 0)
-    v_min_temp = np.min(uv_vertices[1], axis= 0)
-    u_max_temp = np.max(uv_vertices[0], axis= 0)
-    v_max_temp = np.max(uv_vertices[1], axis= 0)
+    u_min_in = np.clip(u_min, 0, IMAGE_W)
+    u_max_in = np.clip(u_max, 0, IMAGE_W)
+    v_min_in = np.clip(v_min, 0, IMAGE_H)
+    v_max_in = np.clip(v_max, 0, IMAGE_H)
+    inside_area = (u_max_in - u_min_in) * (v_max_in - v_min_in)
+    truncation = 1 - (inside_area / box3d_area)
 
-    box3d_area = (int(u_max_temp) - int(u_min_temp))*(int(v_max_temp) - int(v_min_temp))
-
-    # # Update projected uv_min if they are larger than min bounds from globalId
-    # # projected uv_max if they are smaller than max bounds from globalId
-    u_min_temp = u_min if u_min < u_min_temp else u_min_temp
-    v_min_temp = v_min if v_min < v_min_temp else v_min_temp
-    u_max_temp = u_max if u_max > u_max_temp else u_max_temp
-    v_max_temp = v_max if v_max > v_max_temp else v_max_temp
-
-    # # https://github.com/abhi1kumar/groomed_nms/blob/main/data/kitti_split1/devkit/readme.txt#L55-L72
-    truncation = 1.0
-    if u_min < u_max and v_min < v_max and u_min_temp < u_max_temp and v_min_temp < v_max_temp:
-        truncation  = 1.0 - ((u_max - u_min)*(v_max - v_min))/((u_max_temp - u_min_temp)*(v_max_temp - v_min_temp))
-
-    # occlusion
-    # box2d_area     = (int(u_max) - int(u_min))*(int(v_max) - int(v_min))
+    # img = instance_seg == global_id
+    # plt.imshow(img)
+    # plt.show()
+    # ==============================================================================
+    # Occlusion
+    # ============================================================================== 
+    globalId_cnt = np.sum(instance_seg == global_id)
     visible_frac   = globalId_cnt/box3d_area if box3d_area > 0 else 0.0
 
     VISIBLE_FRAC_THRESHOLD_1 = 0.6
@@ -207,9 +274,9 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
     occ = '{:d} '.format(occlusion)
     a = '{:.2f} '.format(alpha)
     bb = '{:.2f} {:.2f} {:.2f} {:.2f} '.format(bbox_2d[0], bbox_2d[1], bbox_2d[2], bbox_2d[3])
-    hwl = '{:.2} {:.2f} {:.2f} '.format(dims[0], dims[1], dims[2])  # height, width, length.
-    xyz = '{:.2f} {:.2f} {:.2f} '.format(location[0], location[1], location[2])  # x, y, z.
-    y = '{:.2f}'.format(rotation_y)  # Yaw angle.
+    hwl = '{:.2} {:.2f} {:.2f} '.format(h, w, l)  # height, width, length.
+    xyz = '{:.2f} {:.2f} {:.2f} '.format(x, y, z)  # x, y, z.
+    y = '{:.2f}'.format(rot_y)  # Yaw angle.
     # s = ' {:.4f}'.format(box.score)  # Classification score.
 
     output = name + trunc + occ + a + bb + hwl + xyz + y
@@ -217,3 +284,44 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, return_str=True):
     return output
 
 
+def test():
+    from label_helpers import Annotation3D
+    from kitti_helper import get_kitti_annotations
+    from project import CameraPerspective
+    from convert_data import create_instance_3d_dict, check_for_instance_segmentation, get_instance_ids, get_annos_3d
+
+    seq = '2013_05_28_drive_0000_sync'
+    frame_id = 1540
+    camera = CameraPerspective(ROOT_DIR, seq, CAM_ID)
+
+    label3DBboxPath = os.path.join(ROOT_DIR, 'data_3d_bboxes/train')
+    pose_dir = os.path.join(ROOT_DIR, POSES_DATA)
+    annotation3D = Annotation3D(label3DBboxPath, seq, posesDir=pose_dir)
+    instance_3d_dict = create_instance_3d_dict(annotation3D)
+
+    cam = 'image_%02d' % CAM_ID + '/data_rect/'
+    all_imgs = sorted(os.listdir(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam)))
+
+    img = all_imgs[frame_id]
+    print('Image: {}'.format(img))
+    img_name = img[:-4]
+    frame = int(img_name)
+
+    if not check_for_instance_segmentation(seq, frame):
+        print('[Error] No segmentation label')
+        quit()
+
+    instance_ids = get_instance_ids(seq, frame)
+    annos_3d = get_annos_3d(instance_3d_dict, instance_ids)
+    if len(annos_3d) == 0:  # make sure we have 3d annotations
+        print('[Error] Length of annos_3d == 0')
+        quit()
+    
+    for anno in annos_3d:
+        output = get_kitti_annotations(anno, camera, seq, frame)
+        if output == '':
+            continue
+        print(output)
+
+if __name__ == '__main__':
+    test()

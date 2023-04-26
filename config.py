@@ -9,6 +9,7 @@ config = {
     "KITTI_LABEL_FOLDER": "./label_2",
     "KITTI_CALIB_FOLDER": "./calib_2",
     "CAM_ID": 0,
+    "SEQUENCE": 0,
     "CATEGORIES": ['car', 'person', 'bicycle'],
     "MAX_N": 1000
 }
