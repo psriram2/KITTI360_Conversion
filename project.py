@@ -140,11 +140,18 @@ class CameraPerspective(Camera):
         self.width, self.height = width, height
         self.R_rect = R_rect
 
-    def cam2image(self, points):
+        self.temp_K = None
+
+    def cam2image(self, points, temp_K=False):
         ndim = points.ndim
         if ndim == 2:
             points = np.expand_dims(points, 0)
-        points_proj = np.matmul(self.K[:3,:3].reshape([1,3,3]), points)
+        
+        if not temp_K:
+            points_proj = np.matmul(self.K[:3,:3].reshape([1,3,3]), points)
+        else:
+            points_proj = np.matmul(self.temp_K[:3,:3].reshape([1,3,3]), points)
+
         depth = points_proj[:,2,:]
         depth[depth==0] = -1e-6
         u = np.round(points_proj[:,0,:]/np.abs(depth)).astype(np.int32)
@@ -290,6 +297,101 @@ def get_new_points_local(points_local):
     return proj_points
 
 
+def get_new_points_local2(points_local):
+
+    from numpy import array,mat,sin,cos,dot,eye
+    from numpy.linalg import norm
+
+    def rodrigues(r):
+        def S(n):
+            Sn = array([[0,-n[2],n[1]],[n[2],0,-n[0]],[-n[1],n[0],0]])
+            return Sn
+        theta = norm(r)
+        if theta > 1e-30:
+            n = r/theta
+            Sn = S(n)
+            R = eye(3) + sin(theta)*Sn + (1-cos(theta))*dot(Sn,Sn)
+        else:
+            Sr = S(r)
+            theta2 = theta**2
+            R = eye(3) + (1-theta2/6.)*Sr + (.5-theta2/24.)*dot(Sr,Sr)
+        print("R shape: ", R.shape)
+        # return array(R)
+        return R
+
+    # perform pitch warping
+    new_points_local = []
+    print("points local: ", points_local)
+    
+    vec = (points_local[3] - points_local[6])
+    rotation_x = np.arctan(-1*vec[1]/(np.sqrt(vec[0]**2 + vec[2]**2))) # could be negative
+
+    proj_xz = np.array([vec[0], 0.0, vec[2]])
+    proj_xz = proj_xz / np.linalg.norm(proj_xz)
+
+    unit_h_dir = np.array([0, 1, 0])
+    rot_axis = np.cross(proj_xz, unit_h_dir)
+    print("rot_axis: ", rot_axis)
+
+    rot_matrix = rodrigues(rotation_x * rot_axis)
+    print("rot_matrix: ", rot_matrix)
+    
+    new_points_local = rot_matrix @ np.transpose(points_local)
+    # 1/0
+
+    return np.transpose(new_points_local), np.linalg.inv(rot_matrix)
+    pass
+
+def estimate_ground_plane(annotation3D):
+
+    avg_dir_vector = np.array([0.0, 0.0, 0.0])
+
+    for k,v in annotation3D.objects.items():
+        if len(v.keys())==1 and (-1 in v.keys()): # show static only
+            obj3d = v[-1]
+            if not id2label[obj3d.semanticId].name=='car': # show buildings only
+                continue
+
+            if obj3d.semanticId * MAX_N + obj3d.instanceId not in instanceIDs:
+                continue 
+
+            # print("obj3d vertices: ", obj3d.vertices)
+            
+            camera(obj3d, frame)
+            # vertices = np.asarray(obj3d.vertices_proj).T
+            # points.append(np.asarray(obj3d.vertices_proj).T)
+            # depths.append(np.asarray(obj3d.vertices_depth))
+
+
+            points_local = obj3d.vertices
+            curr_pose = camera.cam2world[frame]
+            T = curr_pose[:3,  3]
+            R = curr_pose[:3, :3]
+
+            print("world corodinates: ", points_local)
+
+            # convert points from world coordinate to camera coordinate 
+            points_local = camera.world2cam(points_local, R, T, inverse=True)
+            points_local = np.transpose(points_local)
+
+
+            # print("points local: ", points_local)
+            # avg_dir_vector += (points_local[3] - points_local[6])
+            # avg_dir_vector += (points_local[2] - points_local[7])
+            # avg_dir_vector += (points_local[0] - points_local[5])
+            # avg_dir_vector += (points_local[1] - points_local[4])
+            avg_dir_vector += np.absolute(points_local[3] - points_local[6])
+            avg_dir_vector += np.absolute(points_local[2] - points_local[7])
+            avg_dir_vector += np.absolute(points_local[0] - points_local[5])
+            avg_dir_vector += np.absolute(points_local[1] - points_local[4])
+            avg_dir_vector[0] = 0.0
+
+    avg_dir_vector = avg_dir_vector / np.linalg.norm(avg_dir_vector)
+    rotation_x = -1*np.arctan(avg_dir_vector[1] / avg_dir_vector[2])
+
+    rot_matrix = np.array([[1, 0, 0], [0, np.cos(rotation_x), -1*np.sin(rotation_x)], [0, np.sin(rotation_x), np.cos(rotation_x)]])
+    print("ground plane estimation done.")
+    return rot_matrix
 
 if __name__=="__main__":
     import cv2
@@ -362,6 +464,8 @@ if __name__=="__main__":
         # print("instanceIds: ", instanceIDs)
         # print("semantic names: ", semanticIDs)
         # 1/0
+
+        gplane = estimate_ground_plane(annotation3D)
             
 
         print(image_file)
@@ -403,7 +507,15 @@ if __name__=="__main__":
 
 
                 # new_points_local = get_new_points_local(points_local)
-                points_local = get_new_points_local(points_local)
+                # points_local = get_new_points_local(points_local)
+                # points_local, inv_rot = get_new_points_local2(points_local)
+
+                points_local = np.transpose(gplane @ np.transpose(points_local))
+                inv_rot = np.linalg.inv(gplane)
+
+                # print("points local shape: ", points_local.shape)
+
+                print("new points local: ", points_local)
                 # 1/0
 
 
@@ -414,9 +526,9 @@ if __name__=="__main__":
                 length = np.linalg.norm((points_local[3] - points_local[6]))
                 print("hwl : ", height, width ,length)
 
-                height = max(np.linalg.norm((points_local[2] - points_local[3])), np.linalg.norm((points_local[0] - points_local[1])), np.linalg.norm((points_local[7] - points_local[6])), np.linalg.norm((points_local[5] - points_local[4])))
-                width = max(np.linalg.norm((points_local[1] - points_local[3])), np.linalg.norm((points_local[0] - points_local[2])), np.linalg.norm((points_local[5] - points_local[7])), np.linalg.norm((points_local[4] - points_local[6])))
-                length = max(np.linalg.norm((points_local[3] - points_local[6])), np.linalg.norm((points_local[2] - points_local[7])), np.linalg.norm((points_local[0] - points_local[5])), np.linalg.norm((points_local[1] - points_local[4])))
+                # height = max(np.linalg.norm((points_local[2] - points_local[3])), np.linalg.norm((points_local[0] - points_local[1])), np.linalg.norm((points_local[7] - points_local[6])), np.linalg.norm((points_local[5] - points_local[4])))
+                # width = max(np.linalg.norm((points_local[1] - points_local[3])), np.linalg.norm((points_local[0] - points_local[2])), np.linalg.norm((points_local[5] - points_local[7])), np.linalg.norm((points_local[4] - points_local[6])))
+                # length = max(np.linalg.norm((points_local[3] - points_local[6])), np.linalg.norm((points_local[2] - points_local[7])), np.linalg.norm((points_local[0] - points_local[5])), np.linalg.norm((points_local[1] - points_local[4])))
                 
 
                 # print("height: ", (points_local[2] - points_local[3]))
@@ -454,7 +566,10 @@ if __name__=="__main__":
                 # 1/0
 
                 # rotation_y 
+                print("points local shape: ", points_local.shape)
                 vec = (points_local[3] - points_local[6])
+                # print("vec: ", vec_xz[0].shape)
+                # rotation_y = -1*np.arctan2(vec[2], vec[0])
                 rotation_y = -1*np.arctan2(vec[2], vec[0])
                 print("rotation_y: ", rotation_y*180 / np.pi)
 
@@ -490,6 +605,11 @@ if __name__=="__main__":
                 new_vertices = np.array(reordered_box_3d)
 
                 print("new vertices (cam coordinates): ", new_vertices)
+
+                # new_vertices = np.transpose(inv_rot @ np.transpose(new_vertices))
+                camera.temp_K = np.zeros((3, 4))
+                camera.temp_K[:3, :3] = np.matmul(camera.K[:3, :3], inv_rot)
+
                 print("DIFFERENCE: ", new_vertices - points_local)
                 print("#"*100)
 
@@ -501,18 +621,18 @@ if __name__=="__main__":
                 for line in obj3d.lines:
                 # for line in [obj3d.lines[3]]:
                 # for line in [[3, 6]]:
-                    v = [obj3d.vertices[line[0]]*x + obj3d.vertices[line[1]]*(1-x) for x in np.arange(0,1,0.01)]
+                    # v = [obj3d.vertices[line[0]]*x + obj3d.vertices[line[1]]*(1-x) for x in np.arange(0,1,0.01)]
                     # v = []
                     # center = (obj3d.vertices[1] + obj3d.vertices[3] + obj3d.vertices[4] + obj3d.vertices[6]) / 4
                     # print("real center: ", center)
                     # v.append(center)
                     # v.append(new_vertices[0])
-
+                    # print("v: ", v)
                     # v = [new_vertices[5]]
 
-                    # v = [new_vertices[line[0]]*x + new_vertices[line[1]]*(1-x) for x in np.arange(0,1,0.01)]
-                    v = [points_local[line[0]]*x + points_local[line[1]]*(1-x) for x in np.arange(0,1,0.01)]
-                    u, v, depth = camera.cam2image(np.transpose(v))
+                    v = [new_vertices[line[0]]*x + new_vertices[line[1]]*(1-x) for x in np.arange(0,1,0.01)]
+                    # v = [points_local[line[0]]*x + points_local[line[1]]*(1-x) for x in np.arange(0,1,0.01)]
+                    u, v, depth = camera.cam2image(np.transpose(v), temp_K=True)
                     uv, d = (u, v), depth
 
                     # uv, d = camera.project_vertices(np.asarray(v), frame)

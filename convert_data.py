@@ -7,7 +7,7 @@ from tqdm import tqdm
 # local imports
 from label_helpers import Annotation3D
 from labels import id2label
-from kitti_helper import get_kitti_annotations
+from kitti_helper import get_kitti_annotations, estimate_ground_plane
 from project import CameraPerspective
 from calib_helpers import loadPerspectiveIntrinsic, loadCalibrationRigid
 from config import config
@@ -144,6 +144,8 @@ if __name__ == "__main__":
         annos_3d = get_annos_3d(instance_3d_dict, instance_ids)
         if len(annos_3d) == 0:  # make sure we have 3d annotations
             continue
+           
+        ground_plane = estimate_ground_plane(annos_3d, camera, frame)
         
         label_path = os.path.join(KITTI_LABEL_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.txt')
         if os.path.exists(label_path):
@@ -151,8 +153,11 @@ if __name__ == "__main__":
             pass
         with open(label_path, "w") as label_file:
             for anno in annos_3d:
-                output = get_kitti_annotations(anno, camera, seq, frame)
+                output = get_kitti_annotations(anno, camera, seq, frame, ground_plane=ground_plane)
                 label_file.write(output + '\n')
+                
+        if ground_plane is not None:
+            proj_matrix[:3, :3] = np.matmul(proj_matrix[:3, :3], np.linalg.inv(ground_plane))
     
         kitti_transforms = dict()
         kitti_transforms['P0'] = np.zeros((3, 4))  # Dummy values.
