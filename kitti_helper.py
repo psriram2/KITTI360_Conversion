@@ -274,7 +274,7 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, ground_plane=None, 
     # ============================================================================== 
     
     points_bbox = np.transpose(points_bbox)
-    u, v, depth = camera.cam2image(points_bbox)
+    u, v, depth = camera.cam2image(np.matmul(np.linalg.inv(ground_plane), points_bbox))
     u_min, u_max = np.min(u), np.max(u)
     v_min, v_max = np.min(v), np.max(v)
     box3d_area = (u_max - u_min) * (v_max - v_min)
