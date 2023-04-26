@@ -445,15 +445,13 @@ class Annotation3D:
             self.objects[globalId][obj.timestamp] = obj
             self.num_bbox+=1
 
-        globalIds = np.asarray(list(self.objects.keys()))
-        semanticIds, instanceIds = global2local(globalIds)
-        for label in labels:
-            if label.hasInstances:
-                print(f'{label.name:<30}:\t {(semanticIds==label.id).sum()}')
-        print(f'Loaded {len(globalIds)} instances')
-        print(f'Loaded {self.num_bbox} boxes')
-        # print("#"*100)
-        # print(self.objects[26900].keys())
+        # globalIds = np.asarray(list(self.objects.keys()))
+        # semanticIds, instanceIds = global2local(globalIds)
+        # for label in labels:
+        #     if label.hasInstances:
+        #         print(f'{label.name:<30}:\t {(semanticIds==label.id).sum()}')
+        # print(f'Loaded {len(globalIds)} instances')
+        # print(f'Loaded {self.num_bbox} boxes')
 
 
     def __call__(self, semanticId, instanceId, timestamp=None):
