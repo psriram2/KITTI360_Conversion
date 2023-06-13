@@ -5,9 +5,12 @@ from tqdm import tqdm
 dir_calib = 'calib_2'
 dir_image = 'image_2'
 dir_label = 'label_2'
-dir_velodyne = '/hdd/datasets/KITTI-360/data_3d_raw/2013_05_28_drive_0000_sync/velodyne_points/data'
-dir_output = '/hdd/mmdetection3d/data/kitti360_2'
+# dir_velodyne = '/hdd/datasets/KITTI-360/data_3d_raw/2013_05_28_drive_0000_sync/velodyne_points/data'
+dir_velodyne = '/projects/perception/personals/pranav/kitti360/KITTI-360/data_3d_raw/2013_05_28_drive_0000_sync/velodyne_points/data'
+dir_output = './'
 os.makedirs(dir_output, exist_ok=True)
+
+OFFSET = 12000
 
 def rename():
     def get_newname(name):
@@ -34,9 +37,21 @@ def get_img_id(name, int_id=False):
 
 def create_split():
     # generate split txt
-    path_calib = sorted([os.path.join(dir_calib, name) for name in os.listdir(dir_calib)])
-    img_ids = np.array([get_img_id(path, True) for path in path_calib])
-    data_num = len(path_calib)
+    # path_calib = sorted([os.path.join(dir_calib, name) for name in os.listdir(dir_calib)])
+    # img_ids = np.array([get_img_id(path, True) for path in path_calib])
+    # data_num = len(path_calib)
+
+
+    # PRANAV REMOVE
+    path_imgs = sorted([os.path.join(dir_image, name) for name in os.listdir(dir_image)])
+    img_ids = np.array([get_img_id(path, True) for path in path_imgs])
+    data_num = len(path_imgs)
+
+    print("data num: ", data_num)
+    # print("img ids: ", img_ids)
+    # 1/0
+
+
     
     # split files
     # train: 25%, validation: 25%, test: 50% -> follow the distribution of kitti dataset
@@ -46,8 +61,13 @@ def create_split():
     os.makedirs(dir_imgids, exist_ok=True)
 
     cut = int(data_num * 0.5)
+    # cut = int(data_num)
+
     ids_train_valid = img_ids[:cut]
     ids_test = img_ids[cut:]
+    # ids_test = img_ids[:cut]
+
+
     sets_train_valid = np.arange(len(ids_train_valid))
     sets_test = np.arange(len(ids_test))
 
@@ -59,7 +79,7 @@ def create_split():
 
     with open(os.path.join(dir_imgsets, 'train.txt'), 'w') as file:
         for i in range(len(sets_train)):
-            line = '{:0>6d}\n'.format(sets_train[i])
+            line = '{:0>6d}\n'.format(sets_train[i]+OFFSET)
             file.write(line)
     
     with open(os.path.join(dir_imgids, 'train.txt'), 'w') as file:
@@ -69,7 +89,7 @@ def create_split():
 
     with open(os.path.join(dir_imgsets, 'val.txt'), 'w') as file:
         for i in range(len(sets_valid)):
-            line = '{:0>6d}\n'.format(sets_valid[i])
+            line = '{:0>6d}\n'.format(sets_valid[i]+OFFSET)
             file.write(line)
     
     with open(os.path.join(dir_imgids, 'val.txt'), 'w') as file:
@@ -79,7 +99,7 @@ def create_split():
 
     with open(os.path.join(dir_imgsets, 'trainval.txt'), 'w') as file:
         for i in range(len(sets_train_valid)):
-            line = '{:0>6d}\n'.format(sets_train_valid[i])
+            line = '{:0>6d}\n'.format(sets_train_valid[i]+OFFSET)
             file.write(line)
 
     with open(os.path.join(dir_imgids, 'trainval.txt'), 'w') as file:
@@ -89,7 +109,7 @@ def create_split():
 
     with open(os.path.join(dir_imgsets, 'test.txt'), 'w') as file:
         for i in range(len(sets_test)):
-            line = '{:0>6d}\n'.format(sets_test[i])
+            line = '{:0>6d}\n'.format(sets_test[i]+OFFSET)
             file.write(line)
     
     with open(os.path.join(dir_imgids, 'test.txt'), 'w') as file:
@@ -109,6 +129,10 @@ def copy_data_with_ids(dir_input, dir_output, sets, ids):
     paths_input = sorted([os.path.join(dir_input, name) for name in os.listdir(dir_input)])
     for path in tqdm(paths_input):
         path_id = get_img_id(path, int_id=True)
+
+        # PRANAV REMOVE
+        # path_id += OFFSET
+
         s = match_set_with_id(path_id, sets, ids)
         if s >= 0:
             path_output = os.path.join(dir_output, '{:0>6d}{}'.format(s, path[-4:]))

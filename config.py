@@ -1,6 +1,7 @@
 
 config = {
-    "ROOT_DIR": "../KITTI360_scripts/",
+    # "ROOT_DIR": "../KITTI360_scripts/", 
+    "ROOT_DIR": "../KITTI-360/", 
     "RAW_IMAGE_DATA": "data_2d_raw",
     "INSTANCE_SEG_DATA": "data_2d_semantics/train",
     "POSES_DATA": "data_poses",

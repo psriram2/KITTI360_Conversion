@@ -151,11 +151,20 @@ if __name__ == "__main__":
         if os.path.exists(label_path):
             # 1/0 # should never happen
             pass
+
+
+        label_outputs = []
+        for anno in annos_3d:
+            output = get_kitti_annotations(anno, camera, seq, frame, ground_plane=ground_plane)
+            if output != '':
+                label_outputs.append(output)
+
+        if len(label_outputs) == 0:
+            continue
+
         with open(label_path, "w") as label_file:
-            for anno in annos_3d:
-                output = get_kitti_annotations(anno, camera, seq, frame, ground_plane=ground_plane)
-                if output != '':
-                    label_file.write(output + '\n')
+            for output in label_outputs:
+                label_file.write(output + '\n')
             
         new_proj_matrix = np.zeros((3, 4))
         if ground_plane is not None:
@@ -170,17 +179,17 @@ if __name__ == "__main__":
         kitti_transforms['Tr_velo_to_cam'] = velo_to_cam[:3, :] # should not be used for monocular 3d either.
         kitti_transforms['Tr_imu_to_velo'] = np.zeros((3, 4)) # Dummy values.
         calib_path = os.path.join(KITTI_CALIB_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.txt')
-        with open(calib_path, "w") as calib_file:
-            for (key, val) in kitti_transforms.items():
-                val = val.flatten()
-                val_str = '%.12e' % val[0]
-                for v in val[1:]:
-                    val_str += ' %.12e' % v
-                calib_file.write('%s: %s\n' % (key, val_str))
+        # with open(calib_path, "w") as calib_file:
+        #     for (key, val) in kitti_transforms.items():
+        #         val = val.flatten()
+        #         val_str = '%.12e' % val[0]
+        #         for v in val[1:]:
+        #             val_str += ' %.12e' % v
+        #         calib_file.write('%s: %s\n' % (key, val_str))
         
-        image_path = os.path.join(KITTI_IMAGE_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.png')
-        curr_img = io.imread(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam, all_imgs[j]))
-        io.imsave(image_path, curr_img)
+        # image_path = os.path.join(KITTI_IMAGE_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.png')
+        # curr_img = io.imread(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam, all_imgs[j]))
+        # io.imsave(image_path, curr_img)
 
 
 
