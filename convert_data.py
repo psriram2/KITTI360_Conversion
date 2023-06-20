@@ -9,7 +9,7 @@ from label_helpers import Annotation3D
 from labels import id2label
 from kitti_helper import get_kitti_annotations, estimate_ground_plane
 from project import CameraPerspective
-from calib_helpers import loadPerspectiveIntrinsic, loadCalibrationRigid
+from calib_helpers import loadPerspectiveIntrinsic, loadCalibrationRigid, loadCalibrationCameraToPose
 from config import config
 
 
@@ -120,76 +120,90 @@ if __name__ == "__main__":
     velo_to_cam = np.linalg.inv(np.array(Tr))
     print("velo_to_cam: \n", velo_to_cam)
 
-
-    seq = '2013_05_28_drive_{:0>4d}_sync'.format(SEQUENCE)
-    camera = CameraPerspective(ROOT_DIR, seq, CAM_ID)
-
-    label3DBboxPath = os.path.join(ROOT_DIR, 'data_3d_bboxes/train')
-    pose_dir = os.path.join(ROOT_DIR, POSES_DATA)
-    annotation3D = Annotation3D(label3DBboxPath, seq, posesDir=pose_dir)
-    instance_3d_dict = create_instance_3d_dict(annotation3D)
-
-    cam = 'image_%02d' % CAM_ID + '/data_rect/'
-    all_imgs = os.listdir(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam))
-
-    for j in tqdm(range(len(all_imgs))):
-        img = all_imgs[j]
-        img_name = img[:-4]
-        frame = int(img_name)
-
-        if not check_for_instance_segmentation(seq, frame):
-            continue
-
-        instance_ids = get_instance_ids(seq, frame)
-        annos_3d = get_annos_3d(instance_3d_dict, instance_ids)
-        if len(annos_3d) == 0:  # make sure we have 3d annotations
-            continue
-           
-        ground_plane = estimate_ground_plane(annos_3d, camera, frame)
-        
-        label_path = os.path.join(KITTI_LABEL_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.txt')
-        if os.path.exists(label_path):
-            # 1/0 # should never happen
-            pass
+    fileCameraToPose = os.path.join(ROOT_DIR, GT_CALIB_DATA, 'calib_cam_to_pose.txt')
+    Tr = loadCalibrationCameraToPose(fileCameraToPose)
+    print('Loaded %s' % fileCameraToPose)
+    pose_to_cam = np.linalg.inv(np.array(Tr[f'image_0{CAM_ID}']))
+    print("pose_to_cam: \n", pose_to_cam)
 
 
-        label_outputs = []
-        for anno in annos_3d:
-            output = get_kitti_annotations(anno, camera, seq, frame, ground_plane=ground_plane)
-            if output != '':
-                label_outputs.append(output)
+    for seq_idx, curr_seq in enumerate(SEQUENCE):
+        print(f"processing sequence {curr_seq} ({seq_idx}/{len(SEQUENCE)})")
+        seq = '2013_05_28_drive_{:0>4d}_sync'.format(curr_seq)
+        camera = CameraPerspective(ROOT_DIR, seq, CAM_ID)
 
-        if len(label_outputs) == 0:
-            continue
+        label3DBboxPath = os.path.join(ROOT_DIR, 'data_3d_bboxes/train')
+        pose_dir = os.path.join(ROOT_DIR, POSES_DATA)
+        annotation3D = Annotation3D(label3DBboxPath, seq, posesDir=pose_dir)
+        instance_3d_dict = create_instance_3d_dict(annotation3D)
 
-        with open(label_path, "w") as label_file:
-            for output in label_outputs:
-                label_file.write(output + '\n')
+        cam = 'image_%02d' % CAM_ID + '/data_rect/'
+        all_imgs = os.listdir(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam))
+
+        for j in tqdm(range(len(all_imgs))):
+            img = all_imgs[j]
+            img_name = img[:-4]
+            frame = int(img_name)
+
+            if not check_for_instance_segmentation(seq, frame):
+                continue
+
+            instance_ids = get_instance_ids(seq, frame)
+            annos_3d = get_annos_3d(instance_3d_dict, instance_ids)
+            if len(annos_3d) == 0:  # make sure we have 3d annotations
+                continue
             
-        new_proj_matrix = np.zeros((3, 4))
-        if ground_plane is not None:
-            new_proj_matrix[:3, :3] = np.matmul(proj_matrix[:3, :3], np.linalg.inv(ground_plane))
+            # ground_plane = estimate_ground_plane(annos_3d, camera, frame)
+            ground_plane = None
+            
+            label_path = os.path.join(KITTI_LABEL_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.txt')
+            if os.path.exists(label_path):
+                # 1/0 # should never happen
+                pass
 
-        kitti_transforms = dict()
-        kitti_transforms['P0'] = np.zeros((3, 4))  # Dummy values.
-        kitti_transforms['P1'] = np.zeros((3, 4))  # Dummy values.
-        kitti_transforms['P2'] = new_proj_matrix  # camera transform --> MAKE SURE THAT IMAGES ARE UNDER 'image_2'
-        kitti_transforms['P3'] = np.zeros((3, 4))  # Dummy values.
-        kitti_transforms['R0_rect'] = R0_rect  # Cameras are already rectified.
-        kitti_transforms['Tr_velo_to_cam'] = velo_to_cam[:3, :] # should not be used for monocular 3d either.
-        kitti_transforms['Tr_imu_to_velo'] = np.zeros((3, 4)) # Dummy values.
-        calib_path = os.path.join(KITTI_CALIB_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.txt')
-        # with open(calib_path, "w") as calib_file:
-        #     for (key, val) in kitti_transforms.items():
-        #         val = val.flatten()
-        #         val_str = '%.12e' % val[0]
-        #         for v in val[1:]:
-        #             val_str += ' %.12e' % v
-        #         calib_file.write('%s: %s\n' % (key, val_str))
-        
-        # image_path = os.path.join(KITTI_IMAGE_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.png')
-        # curr_img = io.imread(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam, all_imgs[j]))
-        # io.imsave(image_path, curr_img)
+
+            label_outputs = []
+            for anno in annos_3d:
+                output = get_kitti_annotations(anno, camera, seq, frame, ground_plane=ground_plane)
+                if output != '':
+                    label_outputs.append(output)
+
+            if len(label_outputs) == 0:
+                continue
+
+            with open(label_path, "w") as label_file:
+                for output in label_outputs:
+                    label_file.write(output + '\n')
+                
+            new_proj_matrix = np.zeros((3, 4))
+            if ground_plane is not None:
+                new_proj_matrix[:3, :3] = np.matmul(proj_matrix[:3, :3], np.linalg.inv(ground_plane))
+            else:
+                new_proj_matrix = proj_matrix
+
+            imu_to_velo = np.matmul(np.linalg.inv(velo_to_cam), pose_to_cam)
+
+            kitti_transforms = dict()
+            kitti_transforms['P0'] = np.zeros((3, 4))  # Dummy values.
+            kitti_transforms['P1'] = np.zeros((3, 4))  # Dummy values.
+            kitti_transforms['P2'] = new_proj_matrix  # camera transform --> MAKE SURE THAT IMAGES ARE UNDER 'image_2'
+            kitti_transforms['P3'] = np.zeros((3, 4))  # Dummy values.
+            kitti_transforms['R0_rect'] = R0_rect  # Cameras are already rectified.
+            kitti_transforms['Tr_velo_to_cam'] = velo_to_cam[:3, :] # can be used for monocular 3d.
+            kitti_transforms['Tr_imu_to_velo'] = imu_to_velo[:3, :] # should not be used for monocular 3d either.
+            
+            calib_path = os.path.join(KITTI_CALIB_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.txt')
+            with open(calib_path, "w") as calib_file:
+                for (key, val) in kitti_transforms.items():
+                    val = val.flatten()
+                    val_str = '%.12e' % val[0]
+                    for v in val[1:]:
+                        val_str += ' %.12e' % v
+                    calib_file.write('%s: %s\n' % (key, val_str))
+            
+            image_path = os.path.join(KITTI_IMAGE_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.png')
+            curr_img = io.imread(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam, all_imgs[j]))
+            io.imsave(image_path, curr_img)
 
 
 

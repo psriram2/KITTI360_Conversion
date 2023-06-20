@@ -9,8 +9,14 @@ config = {
     "KITTI_IMAGE_FOLDER": "./image_2",
     "KITTI_LABEL_FOLDER": "./label_2",
     "KITTI_CALIB_FOLDER": "./calib_2",
+    "KITTI_SUBSEQUENCE_FOLDER": "./subsample_2",
     "CAM_ID": 0,
-    "SEQUENCE": 0,
+    # "SEQUENCE": [0,2,3,4,5,6,7,9,10],
+    "SEQUENCE": [0],
+    "SUBSAMPLE_SIZE": 100,
+    "NUM_SUBSEQUENCES": 25,
     "CATEGORIES": ['car', 'person', 'bicycle'],
     "MAX_N": 1000
 }
+
+# /projects/perception/datasets/KITTI-360

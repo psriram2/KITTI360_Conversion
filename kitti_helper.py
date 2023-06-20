@@ -216,7 +216,7 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, ground_plane=None, 
         points_local = np.transpose(np.matmul(ground_plane, points_local))
     else:
         points_local = np.transpose(points_local)
-        points_local = remove_pitch(points_local)
+        # points_local = remove_pitch(points_local)
     
     # dimensions 
     # points_local = np.transpose(points_local)
@@ -274,7 +274,9 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, ground_plane=None, 
     # ============================================================================== 
     
     points_bbox = np.transpose(points_bbox)
-    u, v, depth = camera.cam2image(np.matmul(np.linalg.inv(ground_plane), points_bbox))
+    # u, v, depth = camera.cam2image(np.matmul(np.linalg.inv(ground_plane), points_bbox))
+    u, v, depth = camera.cam2image(points_bbox)
+
     u_min, u_max = np.min(u), np.max(u)
     v_min, v_max = np.min(v), np.max(v)
     box3d_area = (u_max - u_min) * (v_max - v_min)
@@ -296,7 +298,7 @@ def get_kitti_annotations(anno3d, camera, sequence, frameId, ground_plane=None, 
     visible_frac   = globalId_cnt/box3d_area if box3d_area > 0 else 0.0
 
     VISIBLE_FRAC_THRESHOLD_1 = 0.6
-    VISIBLE_FRAC_THRESHOLD_2 = 0.1
+    VISIBLE_FRAC_THRESHOLD_2 = 0.2
 
     if visible_frac > VISIBLE_FRAC_THRESHOLD_1:
         occlusion = 0

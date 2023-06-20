@@ -10,7 +10,8 @@ dir_velodyne = '/projects/perception/personals/pranav/kitti360/KITTI-360/data_3d
 dir_output = './'
 os.makedirs(dir_output, exist_ok=True)
 
-OFFSET = 12000
+# OFFSET = 12000
+OFFSET = 0
 
 def rename():
     def get_newname(name):
@@ -71,7 +72,8 @@ def create_split():
     sets_train_valid = np.arange(len(ids_train_valid))
     sets_test = np.arange(len(ids_test))
 
-    sample = (sets_train_valid % 2) == 0
+    # sample = (sets_train_valid % 2) == 0
+    sample = (sets_train_valid - (len(sets_train_valid) // 2)) <= 0
     ids_train = ids_train_valid[sample]
     ids_valid = ids_train_valid[~sample]
     sets_train = sets_train_valid[sample]
