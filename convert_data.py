@@ -22,6 +22,7 @@ GT_CALIB_DATA = config["GT_CALIB_DATA"]
 KITTI_IMAGE_FOLDER = config["KITTI_IMAGE_FOLDER"]
 KITTI_LABEL_FOLDER = config["KITTI_LABEL_FOLDER"]
 KITTI_CALIB_FOLDER = config["KITTI_CALIB_FOLDER"]
+KITTI_SUBSEQUENCE_FOLDER = config["KITTI_SUBSEQUENCE_FOLDER"]
 
 CAM_ID = config["CAM_ID"]
 SEQUENCE = config["SEQUENCE"]
@@ -34,6 +35,7 @@ def get_instance_map_path(sequence, frame):
 
     instance_folder = os.path.join(ROOT_DIR, INSTANCE_SEG_DATA, sequence, 'image_%02d' % CAM_ID, 'instance')
     instance_file = os.path.join(instance_folder, '%010d.png'%frame)
+    # print("instance file: ", instance_file)
     return instance_file
 
 
@@ -138,7 +140,19 @@ if __name__ == "__main__":
         instance_3d_dict = create_instance_3d_dict(annotation3D)
 
         cam = 'image_%02d' % CAM_ID + '/data_rect/'
-        all_imgs = os.listdir(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam))
+        
+        if KITTI_SUBSEQUENCE_FOLDER is not None:
+            all_imgs = []
+            with open(os.path.join(KITTI_SUBSEQUENCE_FOLDER, seq+".txt"), "r") as subsample:
+                for line in subsample:
+                    curr = line.split(",")
+                    all_imgs.append('{:0>10d}'.format(int(curr[0]))+".png")
+            
+            # print("all_igms: ", all_imgs)
+            # 1/0
+            
+        else:
+            all_imgs = os.listdir(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam))
 
         for j in tqdm(range(len(all_imgs))):
             img = all_imgs[j]
@@ -204,15 +218,5 @@ if __name__ == "__main__":
             image_path = os.path.join(KITTI_IMAGE_FOLDER, seq + f"_CAM{CAM_ID}_" + img_name + '.png')
             curr_img = io.imread(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam, all_imgs[j]))
             io.imsave(image_path, curr_img)
-
-
-
-
-
-
-
-
-
-
 
 

@@ -34,31 +34,39 @@ NUM_SUBSEQUENCES = config["NUM_SUBSEQUENCES"]
 
 
 def subsample(sequence):
-    print(f"processing sequence {sequence} ({seq_idx}/{len(SEQUENCE)})")
-    seq = '2013_05_28_drive_{:0>4d}_sync'.format(curr_seq)
+    # print(f"processing sequence {sequence} ({seq_idx}/{len(SEQUENCE)})")
+    seq = '2013_05_28_drive_{:0>4d}_sync'.format(sequence)
     camera = CameraPerspective(ROOT_DIR, seq, CAM_ID)
 
-    # label3DBboxPath = os.path.join(ROOT_DIR, 'data_3d_bboxes/train')
-    # pose_dir = os.path.join(ROOT_DIR, POSES_DATA)
-    # annotation3D = Annotation3D(label3DBboxPath, seq, posesDir=pose_dir)
+    label3DBboxPath = os.path.join(ROOT_DIR, 'data_3d_bboxes/train')
+    pose_dir = os.path.join(ROOT_DIR, POSES_DATA)
+    annotation3D = Annotation3D(label3DBboxPath, seq, posesDir=pose_dir)
     instance_3d_dict = create_instance_3d_dict(annotation3D)
 
     cam = 'image_%02d' % CAM_ID + '/data_rect/'
     all_imgs = os.listdir(os.path.join(ROOT_DIR, RAW_IMAGE_DATA, seq, cam))
 
-    frames = [int(img_name[:-4]) for img_name in all_imgs].sort()
+    frames = [int(img_name[:-4]) for img_name in all_imgs]
+    frames.sort()
     chunks = [frames[i:i + SUBSAMPLE_SIZE] for i in range(0, len(frames), SUBSAMPLE_SIZE)] 
     
-    assert chunks > 1
+    assert len(chunks) > 1
 
     processed_chunks = []
     
-    for chunk_idx, chunk in enumerate(chunks):
+    for chunk_idx in tqdm(range(len(chunks))):
+        if chunk_idx >= 8:
+            break
+
+
+        chunk = chunks[chunk_idx]
         total_annos = 0
+        pos_annos = 0
 
         for frame in chunk:
 
             if not check_for_instance_segmentation(seq, frame):
+                # print(f"No instance segmentation found for {frame}")
                 continue
 
             instance_ids = get_instance_ids(seq, frame)
@@ -66,14 +74,16 @@ def subsample(sequence):
 
             # num_annos = 0
             for anno in annos_3d:
+                pos_annos += 1
                 output = get_kitti_annotations(anno, camera, seq, frame, ground_plane=None)
                 if output != '':
                     total_annos += 1
 
-        processed_chunks.append([chunk_idx, total_annos])
+        processed_chunks.append([chunk_idx, total_annos, pos_annos])
+        print(f"Chunk {chunk_idx} has {total_annos} annotations, possible annotations: {pos_annos}")
 
     
-    processed_chunks.sort(key=lambda x: x[1])
+    processed_chunks.sort(key=lambda x: x[1], reverse=True)
     sampled_chunks = processed_chunks[:NUM_SUBSEQUENCES]
 
     subsample_path = os.path.join(KITTI_SUBSEQUENCE_FOLDER, seq + '.txt')
@@ -81,7 +91,8 @@ def subsample(sequence):
 
         for i in range(len(sampled_chunks)):
             idx, num_annos = sampled_chunks[i][0], sampled_chunks[i][1]
-            print(f"Chunk {idx} has {num_annos} annotations")
+            pos_annos = sampled_chunks[i][2]
+            # print(f"Chunk {idx} has {num_annos} annotations, possible annotations: {pos_annos}")
             
             for frame in chunks[idx]:
                 subsample_file.write('{:0>4d}'.format(frame) + f",{idx}" + "\n")
