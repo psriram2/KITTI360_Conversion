@@ -23,7 +23,7 @@ MAX_N = config["MAX_N"]
 
 IMAGE_H = 376
 IMAGE_W = 1408
-MAX_BOX_DIST = 50
+MAX_BOX_DIST = 40
 
 def get_instance_map_path(sequence, frame):
     """creates the instance segmentation map path given the sequence and frame"""

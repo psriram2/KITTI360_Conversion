@@ -90,7 +90,8 @@ def create_split():
     dir_imgids = os.path.join(dir_output, 'ImageID')
     os.makedirs(dir_imgids, exist_ok=True)
 
-    cut = int(data_num * 0.5)
+    # cut = int(data_num * 0.5)
+    cut = int(data_num-30)
     # cut = int(data_num)
 
     ids_train_valid = img_ids[:cut]

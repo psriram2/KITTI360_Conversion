@@ -13,6 +13,7 @@ from calib_helpers import loadPerspectiveIntrinsic, loadCalibrationRigid, loadCa
 from config import config
 from convert_data import get_instance_map_path, check_for_instance_segmentation, get_instance_ids, create_instance_3d_dict, get_annos_3d
 
+print("Imports done.")
 
 ROOT_DIR = config["ROOT_DIR"]
 RAW_IMAGE_DATA = config["RAW_IMAGE_DATA"]
@@ -55,9 +56,8 @@ def subsample(sequence):
     processed_chunks = []
     
     for chunk_idx in tqdm(range(len(chunks))):
-        if chunk_idx >= 8:
-            break
-
+        # if chunk_idx >= 8:
+        #     break
 
         chunk = chunks[chunk_idx]
         total_annos = 0
